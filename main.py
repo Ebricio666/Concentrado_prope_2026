@@ -314,7 +314,19 @@ def formato_porcentaje(valor):
     except Exception:
         return "Sin dato"
 
-  # ============================================================
+def valor_seguro(fila, columna, default="Sin dato"):
+    if columna not in fila.index:
+        return default
+
+    valor = fila[columna]
+
+    if pd.isna(valor) or str(valor).strip() == "":
+        return default
+
+    return valor
+
+
+# ============================================================
 # HISTORIAL DE ASPIRANTES
 # ============================================================
 
@@ -1897,11 +1909,11 @@ def crear_base_cruzada_maestra(df_historial, df_evaluatec):
     )
 
     df_cruzado["Carrera Historial"] = df_cruzado[
-        "hist_Carrera"
+        "hist_Carrera historial"
     ]
 
     df_cruzado["Carrera EVALUATEC"] = df_cruzado[
-        "eval_Carrera_normalizada"
+        "eval_Carrera EVALUATEC"
     ]
 
     df_cruzado["Carrera"] = df_cruzado[
@@ -1911,7 +1923,7 @@ def crear_base_cruzada_maestra(df_historial, df_evaluatec):
     )
 
     df_cruzado["Carrera match"] = df_cruzado[
-        "hist_Carrera match Historial"
+        "hist_Carrera match historial"
     ].combine_first(
         df_cruzado["eval_Carrera match EVALUATEC"]
     )
@@ -1931,7 +1943,7 @@ def crear_base_cruzada_maestra(df_historial, df_evaluatec):
     )
 
     df_cruzado["Carrera coincide Historial/EVALUATEC"] = (
-        df_cruzado["hist_Carrera match Historial"]
+        df_cruzado["hist_Carrera match historial"]
         ==
         df_cruzado["eval_Carrera match EVALUATEC"]
     )
@@ -1972,10 +1984,36 @@ def extraer_correos_de_fila(fila):
 
     return list(set(correos))
 
+def extraer_correos_historial_fila(fila):
+    """
+    Extrae correos únicamente desde columnas de Historial.
+    Después del merge, las columnas vienen con prefijo hist_.
+    """
 
+    correos = []
+
+    for columna in fila.index:
+        columna_limpia = util_limpiar_texto(columna)
+
+        if not columna_limpia.startswith("hist_"):
+            continue
+
+        if (
+            "correo" in columna_limpia
+            or "email" in columna_limpia
+            or "mail" in columna_limpia
+        ):
+            correo = normalizar_correo(fila[columna])
+
+            if correo != "":
+                correos.append(correo)
+
+    return list(set(correos))
+    
 def buscar_chaside_para_estudiante(fila, df_chaside):
     """
-    Busca registro CHASIDE usando correo, carrera y similitud de nombre.
+    Busca CHASIDE únicamente por email del Historial.
+    Mucho más rápido que comparar por nombre y carrera.
     """
 
     resultado_base = {
@@ -1986,86 +2024,31 @@ def buscar_chaside_para_estudiante(fila, df_chaside):
         "Área débil CHASIDE 1": "Sin dato",
         "Área débil CHASIDE 2": "Sin dato",
         "Score CHASIDE": np.nan,
-        "Estatus cruce CHASIDE": "No encontrado"
+        "Estatus cruce CHASIDE": "No encontrado por email en Historial"
     }
 
     if df_chaside is None or df_chaside.empty:
         return resultado_base
 
-    nombre = valor_seguro(
-        fila,
-        "Nombre",
-        ""
-    )
+    correos_historial = extraer_correos_historial_fila(fila)
 
-    carrera = valor_seguro(
-        fila,
-        "Carrera",
-        ""
-    )
+    if not correos_historial:
+        return resultado_base
 
-    carrera_norm = simplificar_carrera(carrera)
-    correos_estudiante = extraer_correos_de_fila(fila)
-
-    df_match = df_chaside.copy()
-
-    df_match["Coincide correo"] = df_match.apply(
-        lambda fila_ch: (
-            fila_ch["Correo Google CHASIDE"] in correos_estudiante
-            or fila_ch["Correo escrito CHASIDE"] in correos_estudiante
-        ),
-        axis=1
-    )
-
-    df_match["Coincide carrera"] = (
-        df_match["Carrera match CHASIDE"] == carrera_norm
-    )
-
-    df_match["Score nombre"] = df_match[
-        "Nombre completo CHASIDE"
-    ].apply(
-        lambda nombre_chaside: score_nombre_tokens(
-            nombre_chaside,
-            nombre
+    df_match = df_chaside[
+        (
+            df_chaside["Correo Google CHASIDE"].isin(correos_historial)
         )
-    )
-
-    df_match = df_match.sort_values(
-        [
-            "Coincide correo",
-            "Coincide carrera",
-            "Score nombre"
-        ],
-        ascending=[
-            False,
-            False,
-            False
-        ]
-    )
+        |
+        (
+            df_chaside["Correo escrito CHASIDE"].isin(correos_historial)
+        )
+    ].copy()
 
     if df_match.empty:
         return resultado_base
 
     mejor = df_match.iloc[0]
-
-    match_valido = (
-        mejor["Coincide correo"]
-        or (
-            mejor["Coincide carrera"]
-            and mejor["Score nombre"] >= 0.45
-        )
-        or mejor["Score nombre"] >= 0.70
-    )
-
-    if not match_valido:
-        return resultado_base
-
-    if mejor["Coincide correo"]:
-        estatus = "Coincide por correo"
-    elif mejor["Coincide carrera"] and mejor["Score nombre"] >= 0.45:
-        estatus = "Coincide por nombre y carrera"
-    else:
-        estatus = "Coincide por nombre"
 
     return {
         "Diagnóstico CHASIDE": mejor["Diagnóstico CHASIDE"],
@@ -2075,8 +2058,9 @@ def buscar_chaside_para_estudiante(fila, df_chaside):
         "Área débil CHASIDE 1": mejor["Área débil CHASIDE 1"],
         "Área débil CHASIDE 2": mejor["Área débil CHASIDE 2"],
         "Score CHASIDE": mejor["Score CHASIDE"],
-        "Estatus cruce CHASIDE": estatus
+        "Estatus cruce CHASIDE": "Coincide por email en Historial"
     }
+
 
 def obtener_dos_areas_evaluatec(fila, tipo="fuerte"):
     """
@@ -2127,6 +2111,7 @@ def obtener_dos_areas_evaluatec(fila, tipo="fuerte"):
 
     return texto_1, texto_2
     
+
 
 def generar_concentrado_maestro(
     df_historial_preparado,
@@ -2183,20 +2168,20 @@ def generar_concentrado_maestro(
             ),
             "Promedio bachillerato": valor_seguro(
                 fila,
-                "hist_Promedio_normalizado_100",
+                "hist_Promedio bachillerato 100",
                 np.nan
             ),
             "Estatus promedio bachillerato": valor_seguro(
                 fila,
-                "hist_Estatus_promedio"
+                "hist_Estatus promedio bachillerato"
             ),
             "Estatus inicio EVALUATEC": valor_seguro(
                 fila,
-                "eval_Estatus_inicio"
+                "eval_Estatus inicio EVALUATEC"
             ),
             "Resultado global EVALUATEC": valor_seguro(
                 fila,
-                "eval_Promedio_global_individual",
+                "eval_Promedio global EVALUATEC",
                 np.nan
             ),
             "Área fuerte EVALUATEC 1": area_fuerte_eval_1,
@@ -2213,13 +2198,14 @@ def generar_concentrado_maestro(
             "Estatus cruce CHASIDE": resultado_chaside["Estatus cruce CHASIDE"]
         }
 
-for codigo in EVAL_ORDEN_AREAS:
-    columna = f"eval_EVALUATEC {codigo}"
+        for codigo in EVAL_ORDEN_AREAS:
+            columna = f"eval_EVALUATEC {codigo}"
 
-    if columna in fila.index:
-        registro[
-            f"EVALUATEC {EVAL_ETIQUETAS_AREAS.get(codigo, codigo)}"
-        ] = fila[columna]
+            if columna in fila.index:
+                registro[
+                    f"EVALUATEC {EVAL_ETIQUETAS_AREAS.get(codigo, codigo)}"
+                ] = fila[columna]
+
         registros.append(registro)
 
     df_maestro = pd.DataFrame(registros)
@@ -2239,6 +2225,7 @@ for codigo in EVAL_ORDEN_AREAS:
     ).reset_index(drop=True)
 
     return df_maestro
+
 
 # ============================================================
 # EXCEL MAESTRO
@@ -2474,8 +2461,7 @@ def render_app_maestra():
                     archivo
                 )
 
-                bloque = df_eval["Bloque"].iloc[0]
-
+bloque = df_eval["Bloque EVALUATEC"].iloc[0]
                 datos_eval_global[bloque] = {
                     "df": df_eval,
                     "areas": areas_detectadas,
@@ -2530,11 +2516,11 @@ def render_app_maestra():
             df_evaluatec_preparado=df_evaluatec_preparado,
             df_chaside_procesado=df_chaside_procesado
         )
+if df_maestro.empty:
+    st.error("No se pudo generar el concentrado maestro.")
+    st.stop()
 
-    if df_maestro.empty:
-        st.error("No se pudo generar el concentrado maestro.")
-        st.stop()
-        st.session_state["df_maestro"] = df_maestro.copy()
+st.session_state["df_maestro"] = df_maestro.copy()
 
     # ------------------------------------------------------------
     # Vista ejecutiva
@@ -2584,32 +2570,47 @@ def render_app_maestra():
         if columna in df_maestro.columns
     ]
 
-    st.dataframe(
-        df_maestro[columnas_vista],
-        use_container_width=True,
-        hide_index=True
-    )
+    st.markdown("## Descarga")
 
-st.markdown("## Descarga")
-
-if st.button(
-    "📄 Preparar archivo Excel",
-    use_container_width=True
-):
-    with st.spinner("Preparando Excel maestro..."):
-        archivo_excel = generar_excel_maestro(df_maestro)
-
-    st.session_state["archivo_excel_maestro"] = archivo_excel
-
-if "archivo_excel_maestro" in st.session_state:
-    st.download_button(
-        label="⬇️ Descargar concentrado maestro en Excel",
-        data=st.session_state["archivo_excel_maestro"],
-        file_name="concentrado_maestro_aspirantes.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    if st.button(
+        "📄 Preparar archivo Excel",
         use_container_width=True
-    )
-    
+    ):
+        with st.spinner("Preparando Excel maestro..."):
+            archivo_excel = generar_excel_maestro(df_maestro)
+
+        st.session_state["archivo_excel_maestro"] = archivo_excel
+
+    if "archivo_excel_maestro" in st.session_state:
+        st.download_button(
+            label="⬇️ Descargar concentrado maestro en Excel",
+            data=st.session_state["archivo_excel_maestro"],
+            file_name="concentrado_maestro_aspirantes.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+
+    st.markdown("## Descarga")
+
+    if st.button(
+        "📄 Preparar archivo Excel",
+        use_container_width=True
+    ):
+        with st.spinner("Preparando Excel maestro..."):
+            archivo_excel = generar_excel_maestro(df_maestro)
+
+        st.session_state["archivo_excel_maestro"] = archivo_excel
+
+    if "archivo_excel_maestro" in st.session_state:
+        st.download_button(
+            label="⬇️ Descargar concentrado maestro en Excel",
+            data=st.session_state["archivo_excel_maestro"],
+            file_name="concentrado_maestro_aspirantes.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
 
 # ============================================================
 # COMPATIBILIDAD DE NOMBRES
