@@ -2034,16 +2034,16 @@ def buscar_chaside_para_estudiante(fila, df_chaside):
 
     if not correos_historial:
         return resultado_base
+df_match = df_chaside[
+    (
+        df_chaside["Correo Google CHASIDE"].fillna("").isin(correos_historial)
+    )
+    |
+    (
+        df_chaside["Correo escrito CHASIDE"].fillna("").isin(correos_historial)
+    )
+].copy()
 
-    df_match = df_chaside[
-        (
-            df_chaside["Correo Google CHASIDE"].isin(correos_historial)
-        )
-        |
-        (
-            df_chaside["Correo escrito CHASIDE"].isin(correos_historial)
-        )
-    ].copy()
 
     if df_match.empty:
         return resultado_base
@@ -2126,6 +2126,19 @@ def generar_concentrado_maestro(
         df_historial=df_historial_preparado,
         df_evaluatec=df_evaluatec_preparado
     )
+columnas_correo_historial = [
+    columna
+    for columna in df_cruzado.columns
+    if columna.startswith("hist_")
+    and (
+        "correo" in util_limpiar_texto(columna)
+        or "email" in util_limpiar_texto(columna)
+        or "mail" in util_limpiar_texto(columna)
+    )
+]
+
+st.write("Columnas de correo detectadas en Historial:", columnas_correo_historial)
+
 
     registros = []
 
@@ -2414,113 +2427,133 @@ def render_app_maestra():
         use_container_width=True
     )
 
-    if not boton_generar:
+    if not boton_generar and "df_maestro" not in st.session_state:
         st.info(
             "Carga los archivos y presiona el botón para generar la super base."
         )
         st.stop()
 
-    if archivo_historial is None:
-        st.error("Falta cargar el Historial de Aspirantes.")
-        st.stop()
-
-    if not archivos_evaluatec or len(archivos_evaluatec) != 3:
-        st.error("Debes cargar exactamente 3 archivos CSV de EVALUATEC.")
-        st.stop()
-
-    if url_chaside.strip() == "":
-        st.warning(
-            "No pegaste enlace CHASIDE. El concentrado se generará sin resultados vocacionales."
-        )
-
-    # ------------------------------------------------------------
-    # Procesamiento
-    # ------------------------------------------------------------
-
-    with st.spinner("Procesando Historial de Aspirantes..."):
-        df_historial_raw, df_bitacora = procesar_archivo_historial_excel(
-            archivo_historial.getvalue()
-        )
-
-        if df_historial_raw.empty:
-            st.error("No se pudieron identificar estudiantes en el Historial.")
-            st.dataframe(df_bitacora, use_container_width=True)
+    if boton_generar:
+        if archivo_historial is None:
+            st.error("Falta cargar el Historial de Aspirantes.")
             st.stop()
 
-        df_historial_preparado = preparar_historial_para_cruce(
-            df_historial_raw
-        )
-
-    with st.spinner("Procesando archivos EVALUATEC..."):
-        datos_eval_global = {}
-        errores_eval = []
-
-        for archivo in archivos_evaluatec:
-            try:
-                df_eval, areas_detectadas = procesar_archivo_evaluatec(
-                    archivo
-                )
-
-bloque = df_eval["Bloque EVALUATEC"].iloc[0]
-                datos_eval_global[bloque] = {
-                    "df": df_eval,
-                    "areas": areas_detectadas,
-                    "archivo": archivo.name
-                }
-
-            except Exception as error:
-                errores_eval.append(
-                    f"{archivo.name}: {error}"
-                )
-
-        if errores_eval:
-            for error in errores_eval:
-                st.warning(error)
-
-        if not datos_eval_global:
-            st.error("No se pudo procesar ningún archivo EVALUATEC.")
+        if not archivos_evaluatec or len(archivos_evaluatec) != 3:
+            st.error("Debes cargar exactamente 3 archivos CSV de EVALUATEC.")
             st.stop()
 
-        df_evaluatec_preparado = preparar_evaluatec_desde_bloques(
-            datos_eval_global
-        )
+        if url_chaside.strip() == "":
+            st.warning(
+                "No pegaste enlace CHASIDE. El concentrado se generará sin resultados vocacionales."
+            )
 
-        if df_evaluatec_preparado.empty:
-            st.error("EVALUATEC se cargó, pero no se pudo preparar para cruce.")
+        # ------------------------------------------------------------
+        # Procesamiento Historial
+        # ------------------------------------------------------------
+
+        with st.spinner("Procesando Historial de Aspirantes..."):
+            df_historial_raw, df_bitacora = procesar_archivo_historial_excel(
+                archivo_historial.getvalue()
+            )
+
+            if df_historial_raw.empty:
+                st.error("No se pudieron identificar estudiantes en el Historial.")
+                st.dataframe(df_bitacora, use_container_width=True)
+                st.stop()
+
+            df_historial_preparado = preparar_historial_para_cruce(
+                df_historial_raw
+            )
+
+        # ------------------------------------------------------------
+        # Procesamiento EVALUATEC
+        # ------------------------------------------------------------
+
+        with st.spinner("Procesando archivos EVALUATEC..."):
+            datos_eval_global = {}
+            errores_eval = []
+
+            for archivo in archivos_evaluatec:
+                try:
+                    df_eval, areas_detectadas = procesar_archivo_evaluatec(
+                        archivo
+                    )
+                    
+                    bloque = df_eval["Bloque EVALUATEC"].iloc[0]
+
+                    datos_eval_global[bloque] = {
+                        "df": df_eval,
+                        "areas": areas_detectadas,
+                        "archivo": archivo.name
+                    }
+
+                except Exception as error:
+                    errores_eval.append(
+                        f"{archivo.name}: {error}"
+                    )
+
+            if errores_eval:
+                for error in errores_eval:
+                    st.warning(error)
+
+            if not datos_eval_global:
+                st.error("No se pudo procesar ningún archivo EVALUATEC.")
+                st.stop()
+
+            df_evaluatec_preparado = preparar_evaluatec_desde_bloques(
+                datos_eval_global
+            )
+
+            if df_evaluatec_preparado.empty:
+                st.error("EVALUATEC se cargó, pero no se pudo preparar para cruce.")
+                st.stop()
+
+        # ------------------------------------------------------------
+        # Procesamiento CHASIDE
+        # ------------------------------------------------------------
+
+        if url_chaside.strip() != "":
+            with st.spinner("Procesando CHASIDE..."):
+                try:
+                    df_chaside_raw = cargar_respuestas_chaside(
+                        url_chaside
+                    )
+
+                    df_chaside_procesado = procesar_respuestas_chaside(
+                        df_chaside_raw,
+                        peso_intereses=peso_intereses,
+                        peso_aptitudes=peso_aptitudes
+                    )
+
+                except Exception as error:
+                    st.warning(
+                        f"No fue posible procesar CHASIDE. Se continuará sin CHASIDE. Detalle: {error}"
+                    )
+                    df_chaside_procesado = pd.DataFrame()
+        else:
+            df_chaside_procesado = pd.DataFrame()
+
+        # ------------------------------------------------------------
+        # Concentrado maestro
+        # ------------------------------------------------------------
+
+        with st.spinner("Generando concentrado maestro..."):
+            df_maestro = generar_concentrado_maestro(
+                df_historial_preparado=df_historial_preparado,
+                df_evaluatec_preparado=df_evaluatec_preparado,
+                df_chaside_procesado=df_chaside_procesado
+            )
+
+        if df_maestro.empty:
+            st.error("No se pudo generar el concentrado maestro.")
             st.stop()
 
-    if url_chaside.strip() != "":
-        with st.spinner("Procesando CHASIDE..."):
-            try:
-                df_chaside_raw = cargar_respuestas_chaside(
-                    url_chaside
-                )
+        st.session_state["df_maestro"] = df_maestro.copy()
 
-                df_chaside_procesado = procesar_respuestas_chaside(
-                    df_chaside_raw,
-                    peso_intereses=peso_intereses,
-                    peso_aptitudes=peso_aptitudes
-                )
+        if "archivo_excel_maestro" in st.session_state:
+            del st.session_state["archivo_excel_maestro"]
 
-            except Exception as error:
-                st.warning(
-                    f"No fue posible procesar CHASIDE. Se continuará sin CHASIDE. Detalle: {error}"
-                )
-                df_chaside_procesado = pd.DataFrame()
-    else:
-        df_chaside_procesado = pd.DataFrame()
-
-    with st.spinner("Generando concentrado maestro..."):
-        df_maestro = generar_concentrado_maestro(
-            df_historial_preparado=df_historial_preparado,
-            df_evaluatec_preparado=df_evaluatec_preparado,
-            df_chaside_procesado=df_chaside_procesado
-        )
-if df_maestro.empty:
-    st.error("No se pudo generar el concentrado maestro.")
-    st.stop()
-
-st.session_state["df_maestro"] = df_maestro.copy()
+    df_maestro = st.session_state["df_maestro"].copy()
 
     # ------------------------------------------------------------
     # Vista ejecutiva
@@ -2531,7 +2564,6 @@ st.session_state["df_maestro"] = df_maestro.copy()
     )
 
     total_estudiantes = len(df_maestro)
-
     total_carreras = df_maestro["Carrera"].dropna().nunique()
 
     con_evaluatec = df_maestro[
@@ -2570,26 +2602,15 @@ st.session_state["df_maestro"] = df_maestro.copy()
         if columna in df_maestro.columns
     ]
 
-    st.markdown("## Descarga")
+    st.dataframe(
+        df_maestro[columnas_vista],
+        use_container_width=True,
+        hide_index=True
+    )
 
-    if st.button(
-        "📄 Preparar archivo Excel",
-        use_container_width=True
-    ):
-        with st.spinner("Preparando Excel maestro..."):
-            archivo_excel = generar_excel_maestro(df_maestro)
-
-        st.session_state["archivo_excel_maestro"] = archivo_excel
-
-    if "archivo_excel_maestro" in st.session_state:
-        st.download_button(
-            label="⬇️ Descargar concentrado maestro en Excel",
-            data=st.session_state["archivo_excel_maestro"],
-            file_name="concentrado_maestro_aspirantes.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-
+    # ------------------------------------------------------------
+    # Descarga
+    # ------------------------------------------------------------
 
     st.markdown("## Descarga")
 
