@@ -1760,7 +1760,7 @@ def preparar_evaluatec_desde_bloques(datos_eval_global):
 
         df_temp = info_bloque["df"].copy()
 
-        columna_nombre = encontrar_columna_nombre_evaluatec(df_temp)
+        columna_nombre = eval_encontrar_columna_nombre(df_temp)
 
         if columna_nombre is None:
             continue
@@ -1774,7 +1774,7 @@ def preparar_evaluatec_desde_bloques(datos_eval_global):
         ].apply(normalizar_nombre)
 
         df_temp["Carrera match EVALUATEC"] = df_temp[
-            "Carrera_normalizada"
+            "Carrera EVALUATEC"
         ].apply(simplificar_carrera)
 
         areas = info_bloque.get("areas", {})
@@ -1800,8 +1800,7 @@ def preparar_evaluatec_desde_bloques(datos_eval_global):
     )
 
     return df_evaluatec
-
-
+    
 def preparar_historial_para_cruce(df_historial):
     """
     Prepara historial para cruce maestro.
@@ -1809,7 +1808,7 @@ def preparar_historial_para_cruce(df_historial):
 
     df = df_historial.copy()
 
-    col_apellido_paterno, col_apellido_materno, col_nombre = encontrar_nombre_historial(
+    col_apellido_paterno, col_apellido_materno, col_nombre = hist_encontrar_nombre_historial(
         df
     )
 
@@ -1850,68 +1849,26 @@ def preparar_historial_para_cruce(df_historial):
     ].copy()
 
     df["Carrera match Historial"] = df[
-        "Carrera"
+        "Carrera historial"
     ].apply(simplificar_carrera)
 
-    columna_id = util_encontrar_columna(
-        df,
-        [
-            "Matrícula/ID",
-            "Matricula/ID",
-            "Matrícula",
-            "Matricula",
-            "ID"
-        ]
-    )
-
-    if columna_id is not None:
-        df["Matrícula/ID"] = df[columna_id]
-    else:
+    if "Matrícula/ID" not in df.columns:
         df["Matrícula/ID"] = "Sin dato"
 
-    columna_sexo = util_encontrar_columna(
-        df,
-        [
-            "Género",
-            "Genero",
-            "Sexo"
-        ]
-    )
-
-    if columna_sexo is not None:
-        df["Sexo"] = df[columna_sexo].apply(normalizar_sexo)
-    else:
+    if "Sexo" not in df.columns:
         df["Sexo"] = "Sin especificar"
 
-    columna_escuela = util_encontrar_columna(
-        df,
-        [
-            "Escuela de Procedencia",
-            "Escuela Procedencia",
-            "Procedencia",
-            "Escuela"
-        ]
-    )
-
-    if columna_escuela is not None:
-        df["Escuela de procedencia original"] = df[
-            columna_escuela
-        ].fillna("Sin dato").astype(str)
-
-        df["Escuela de procedencia normalizada"] = df[
-            columna_escuela
-        ].apply(normalizar_escuela_procedencia)
-
-        df["Estado de procedencia"] = df[
-            columna_escuela
-        ].apply(clasificar_estado_procedencia)
-
-    else:
+    if "Escuela de procedencia original" not in df.columns:
         df["Escuela de procedencia original"] = "Sin dato"
+
+    if "Escuela de procedencia normalizada" not in df.columns:
         df["Escuela de procedencia normalizada"] = "Sin dato"
+
+    if "Estado de procedencia" not in df.columns:
         df["Estado de procedencia"] = "Sin dato"
 
     return df
+
 
 
 def crear_base_cruzada_maestra(df_historial, df_evaluatec):
@@ -2121,7 +2078,6 @@ def buscar_chaside_para_estudiante(fila, df_chaside):
         "Estatus cruce CHASIDE": estatus
     }
 
-
 def obtener_dos_areas_evaluatec(fila, tipo="fuerte"):
     """
     Obtiene dos áreas fuertes o débiles de EVALUATEC.
@@ -2130,7 +2086,7 @@ def obtener_dos_areas_evaluatec(fila, tipo="fuerte"):
     registros = []
 
     for codigo in EVAL_ORDEN_AREAS:
-        columna = f"eval_Area_{codigo}"
+        columna = f"eval_EVALUATEC {codigo}"
 
         if columna not in fila.index:
             continue
@@ -2170,7 +2126,7 @@ def obtener_dos_areas_evaluatec(fila, tipo="fuerte"):
     texto_2 = f"{area_2['Área']} ({area_2['Resultado']:.1f}%)"
 
     return texto_1, texto_2
-
+    
 
 def generar_concentrado_maestro(
     df_historial_preparado,
@@ -2257,14 +2213,13 @@ def generar_concentrado_maestro(
             "Estatus cruce CHASIDE": resultado_chaside["Estatus cruce CHASIDE"]
         }
 
-        for codigo in EVAL_ORDEN_AREAS:
-            columna = f"eval_Area_{codigo}"
+for codigo in EVAL_ORDEN_AREAS:
+    columna = f"eval_EVALUATEC {codigo}"
 
-            if columna in fila.index:
-                registro[
-                    f"EVALUATEC {EVAL_ETIQUETAS_AREAS.get(codigo, codigo)}"
-                ] = fila[columna]
-
+    if columna in fila.index:
+        registro[
+            f"EVALUATEC {EVAL_ETIQUETAS_AREAS.get(codigo, codigo)}"
+        ] = fila[columna]
         registros.append(registro)
 
     df_maestro = pd.DataFrame(registros)
@@ -2579,6 +2534,7 @@ def render_app_maestra():
     if df_maestro.empty:
         st.error("No se pudo generar el concentrado maestro.")
         st.stop()
+        st.session_state["df_maestro"] = df_maestro.copy()
 
     # ------------------------------------------------------------
     # Vista ejecutiva
@@ -2634,20 +2590,26 @@ def render_app_maestra():
         hide_index=True
     )
 
-    st.markdown("## Descarga")
+st.markdown("## Descarga")
 
-    archivo_excel = generar_excel_maestro(
-        df_maestro
-    )
+if st.button(
+    "📄 Preparar archivo Excel",
+    use_container_width=True
+):
+    with st.spinner("Preparando Excel maestro..."):
+        archivo_excel = generar_excel_maestro(df_maestro)
 
+    st.session_state["archivo_excel_maestro"] = archivo_excel
+
+if "archivo_excel_maestro" in st.session_state:
     st.download_button(
         label="⬇️ Descargar concentrado maestro en Excel",
-        data=archivo_excel,
+        data=st.session_state["archivo_excel_maestro"],
         file_name="concentrado_maestro_aspirantes.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
-
+    
 
 # ============================================================
 # COMPATIBILIDAD DE NOMBRES
