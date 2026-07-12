@@ -2034,16 +2034,16 @@ def buscar_chaside_para_estudiante(fila, df_chaside):
 
     if not correos_historial:
         return resultado_base
-df_match = df_chaside[
-    (
-        df_chaside["Correo Google CHASIDE"].fillna("").isin(correos_historial)
-    )
-    |
-    (
-        df_chaside["Correo escrito CHASIDE"].fillna("").isin(correos_historial)
-    )
-].copy()
 
+    df_match = df_chaside[
+        (
+            df_chaside["Correo Google CHASIDE"].fillna("").isin(correos_historial)
+        )
+        |
+        (
+            df_chaside["Correo escrito CHASIDE"].fillna("").isin(correos_historial)
+        )
+    ].copy()
 
     if df_match.empty:
         return resultado_base
@@ -2060,8 +2060,7 @@ df_match = df_chaside[
         "Score CHASIDE": mejor["Score CHASIDE"],
         "Estatus cruce CHASIDE": "Coincide por email en Historial"
     }
-
-
+    
 def obtener_dos_areas_evaluatec(fila, tipo="fuerte"):
     """
     Obtiene dos áreas fuertes o débiles de EVALUATEC.
