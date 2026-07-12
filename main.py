@@ -2125,19 +2125,22 @@ def generar_concentrado_maestro(
         df_historial=df_historial_preparado,
         df_evaluatec=df_evaluatec_preparado
     )
-columnas_correo_historial = [
-    columna
-    for columna in df_cruzado.columns
-    if columna.startswith("hist_")
-    and (
-        "correo" in util_limpiar_texto(columna)
-        or "email" in util_limpiar_texto(columna)
-        or "mail" in util_limpiar_texto(columna)
+
+    columnas_correo_historial = [
+        columna
+        for columna in df_cruzado.columns
+        if columna.startswith("hist_")
+        and (
+            "correo" in util_limpiar_texto(columna)
+            or "email" in util_limpiar_texto(columna)
+            or "mail" in util_limpiar_texto(columna)
+        )
+    ]
+
+    st.write(
+        "Columnas de correo detectadas en Historial:",
+        columnas_correo_historial
     )
-]
-
-st.write("Columnas de correo detectadas en Historial:", columnas_correo_historial)
-
 
     registros = []
 
