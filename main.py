@@ -112,6 +112,17 @@ CHASIDE_COLUMNA_CARRERA = "¿A qué carrera desea ingresar?"
 CHASIDE_COLUMNA_EMAIL_1 = "Dirección de correo electrónico"
 CHASIDE_COLUMNA_EMAIL_2 = "Escriba su correo electrónico"
 
+# ============================================================
+# LINKS PRECARGADOS EDITABLES
+# ============================================================
+
+LINK_HISTORIAL_DEFAULT = "https://docs.google.com/spreadsheets/d/1rthlRH1NiVCb7d5dr45mhQuC3We628ms/edit?usp=sharing&ouid=101744927034742701111&rtpof=true&sd=true"
+
+LINK_CHASIDE_DEFAULT = "https://docs.google.com/spreadsheets/d/1YHMEb5hftOZfV-CMWoUsUgJh1xmsgTY3YYwAtq1dGQA/edit?resourcekey=&gid=1491376423#gid=1491376423"
+
+LINK_EVALUATEC_ADM_DEFAULT = "https://drive.google.com/file/d/1OLECyh4lb578nJw_w00os-TdKEh7kLLN/view?usp=sharing"
+LINK_EVALUATEC_ARQ_DEFAULT = "https://drive.google.com/file/d/1jE_YYsT0kk56EiGP3EwAa1w29Yd8wX2G/view?usp=share_link"
+LINK_EVALUATEC_ING_DEFAULT = "https://drive.google.com/file/d/1iBUu338DgspUkSXhtuIaDs6h8F4cbIxX/view?usp=sharing"
 
 # ============================================================
 # UTILIDADES GENERALES
@@ -217,21 +228,151 @@ def nombre_visible(valor):
     return texto.title()
 
 
-def normalizar_correo(valor):
+# ============================================================
+# LECTURA DE ARCHIVOS DESDE LINKS
+# ============================================================
+
+class ArchivoDesdeURL:
     """
-    Normaliza correos electrónicos.
+    Simula un archivo cargado en Streamlit.
+    Sirve para que EVALUATEC pueda usar archivo.name y archivo.getvalue().
     """
 
-    if pd.isna(valor):
-        return ""
+    def __init__(self, contenido, nombre):
+        self._contenido = contenido
+        self.name = nombre
 
-    texto = str(valor).strip().lower()
+    def getvalue(self):
+        return self._contenido
 
-    if texto in ["", "nan", "none", "sin dato"]:
-        return ""
 
-    return texto
+def extraer_id_google_drive(url):
+    """
+    Extrae ID de archivo desde links de Google Drive o Google Sheets.
+    """
 
+    url = str(url).strip()
+
+    if "/d/" in url:
+        return url.split("/d/")[1].split("/")[0]
+
+    if "id=" in url:
+        return url.split("id=")[1].split("&")[0]
+
+    return None
+
+
+def transformar_link_google_sheets_xlsx(url):
+    """
+    Convierte link editable de Google Sheets a descarga XLSX.
+    """
+
+    file_id = extraer_id_google_drive(url)
+
+    if file_id is None:
+        return url
+
+    return f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+
+
+def transformar_link_drive_descarga(url):
+    """
+    Convierte link de Google Drive a descarga directa.
+    """
+
+    url = str(url).strip()
+
+    if "drive.google.com" not in url:
+        return url
+
+    file_id = extraer_id_google_drive(url)
+
+    if file_id is None:
+        return url
+
+    return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+
+def descargar_archivo_url(url):
+    """
+    Descarga archivo desde URL pública.
+    """
+
+    import urllib.request
+
+    url = str(url).strip()
+
+    if url == "":
+        return None
+
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0"
+        }
+    )
+
+    with urllib.request.urlopen(req) as response:
+        return response.read()
+
+
+def obtener_contenido_historial_desde_link_o_upload(url_historial, archivo_historial):
+    """
+    Usa primero el link editable.
+    Si el link está vacío, usa el archivo cargado manualmente.
+    """
+
+    if str(url_historial).strip() != "":
+        url_descarga = transformar_link_google_sheets_xlsx(url_historial)
+        return descargar_archivo_url(url_descarga)
+
+    if archivo_historial is not None:
+        return archivo_historial.getvalue()
+
+    return None
+
+
+def obtener_archivos_evaluatec_desde_links_o_uploads(
+    url_adm,
+    url_arq,
+    url_ing,
+    archivos_evaluatec
+):
+    """
+    Usa links editables para los 3 CSV de EVALUATEC.
+    Si los links están vacíos, usa carga manual.
+    """
+
+    archivos_desde_links = []
+
+    links = [
+        (url_adm, "EVALUATEC Administración.csv"),
+        (url_arq, "EVALUATEC Arquitectura.csv"),
+        (url_ing, "EVALUATEC Ingeniería.csv")
+    ]
+
+    for url, nombre_archivo in links:
+
+        if str(url).strip() == "":
+            continue
+
+        url_descarga = transformar_link_drive_descarga(url)
+        contenido = descargar_archivo_url(url_descarga)
+
+        archivos_desde_links.append(
+            ArchivoDesdeURL(
+                contenido=contenido,
+                nombre=nombre_archivo
+            )
+        )
+
+    if len(archivos_desde_links) > 0:
+        return archivos_desde_links
+
+    if archivos_evaluatec:
+        return archivos_evaluatec
+
+    return []
 
 def simplificar_carrera(valor):
     """
@@ -2385,26 +2526,66 @@ def render_app_maestra():
         "para consulta docente."
     )
 
-    st.markdown("## 1. Carga de archivos")
+st.markdown("## 1. Carga de archivos")
 
-    archivo_historial = st.file_uploader(
-        "Carga el Excel de Historial de Aspirantes",
-        type=["xlsx", "xls"],
-        key="archivo_historial_maestro"
+st.info(
+    "Puedes usar los links precargados o sustituirlos por nuevos enlaces. "
+    "Si prefieres carga manual, borra los links correspondientes y carga los archivos."
+)
+
+st.markdown("### Historial de Aspirantes")
+
+url_historial = st.text_input(
+    "Link del Excel de Historial de Aspirantes",
+    value=LINK_HISTORIAL_DEFAULT,
+    key="url_historial_maestro"
+)
+
+archivo_historial = st.file_uploader(
+    "O carga manualmente el Excel de Historial de Aspirantes",
+    type=["xlsx", "xls"],
+    key="archivo_historial_maestro"
+)
+
+st.markdown("### EVALUATEC")
+
+col_eval_1, col_eval_2, col_eval_3 = st.columns(3)
+
+with col_eval_1:
+    url_evaluatec_adm = st.text_input(
+        "Link CSV EVALUATEC Administración",
+        value=LINK_EVALUATEC_ADM_DEFAULT,
+        key="url_evaluatec_adm_maestro"
     )
 
-    archivos_evaluatec = st.file_uploader(
-        "Carga los 3 archivos CSV de EVALUATEC",
-        type=["csv"],
-        accept_multiple_files=True,
-        key="archivos_evaluatec_maestro"
+with col_eval_2:
+    url_evaluatec_arq = st.text_input(
+        "Link CSV EVALUATEC Arquitectura",
+        value=LINK_EVALUATEC_ARQ_DEFAULT,
+        key="url_evaluatec_arq_maestro"
     )
 
-    url_chaside = st.text_input(
-        "Pega el enlace de respuestas CHASIDE de Google Sheets",
-        value="",
-        key="url_chaside_maestro"
+with col_eval_3:
+    url_evaluatec_ing = st.text_input(
+        "Link CSV EVALUATEC Ingeniería",
+        value=LINK_EVALUATEC_ING_DEFAULT,
+        key="url_evaluatec_ing_maestro"
     )
+
+archivos_evaluatec = st.file_uploader(
+    "O carga manualmente los 3 archivos CSV de EVALUATEC",
+    type=["csv"],
+    accept_multiple_files=True,
+    key="archivos_evaluatec_maestro"
+)
+
+st.markdown("### CHASIDE")
+
+url_chaside = st.text_input(
+    "Link de respuestas CHASIDE de Google Sheets",
+    value=LINK_CHASIDE_DEFAULT,
+    key="url_chaside_maestro"
+)
 
     peso_intereses = st.slider(
         "Peso de intereses CHASIDE",
@@ -2436,14 +2617,28 @@ def render_app_maestra():
         st.stop()
 
     if boton_generar:
-        if archivo_historial is None:
-            st.error("Falta cargar el Historial de Aspirantes.")
-            st.stop()
+  contenido_historial = obtener_contenido_historial_desde_link_o_upload(
+    url_historial=url_historial,
+    archivo_historial=archivo_historial
+)
 
-        if not archivos_evaluatec or len(archivos_evaluatec) != 3:
-            st.error("Debes cargar exactamente 3 archivos CSV de EVALUATEC.")
-            st.stop()
+if contenido_historial is None:
+    st.error("Falta cargar o indicar el link del Historial de Aspirantes.")
+    st.stop()
 
+archivos_evaluatec_finales = obtener_archivos_evaluatec_desde_links_o_uploads(
+    url_adm=url_evaluatec_adm,
+    url_arq=url_evaluatec_arq,
+    url_ing=url_evaluatec_ing,
+    archivos_evaluatec=archivos_evaluatec
+)
+
+if not archivos_evaluatec_finales or len(archivos_evaluatec_finales) != 3:
+    st.error(
+        "Debes tener exactamente 3 archivos de EVALUATEC. "
+        "Puedes usar los 3 links precargados o cargar los 3 CSV manualmente."
+    )
+    st.stop()
         if url_chaside.strip() == "":
             st.warning(
                 "No pegaste enlace CHASIDE. El concentrado se generará sin resultados vocacionales."
@@ -2455,8 +2650,8 @@ def render_app_maestra():
 
         with st.spinner("Procesando Historial de Aspirantes..."):
             df_historial_raw, df_bitacora = procesar_archivo_historial_excel(
-                archivo_historial.getvalue()
-            )
+    contenido_historial
+)
 
             if df_historial_raw.empty:
                 st.error("No se pudieron identificar estudiantes en el Historial.")
@@ -2475,7 +2670,7 @@ def render_app_maestra():
             datos_eval_global = {}
             errores_eval = []
 
-            for archivo in archivos_evaluatec:
+            for archivo in archivos_evaluatec_finales:
                 try:
                     df_eval, areas_detectadas = procesar_archivo_evaluatec(
                         archivo
