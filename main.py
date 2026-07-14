@@ -2526,66 +2526,66 @@ def render_app_maestra():
         "para consulta docente."
     )
 
-st.markdown("## 1. Carga de archivos")
+    st.markdown("## 1. Carga de archivos")
 
-st.info(
-    "Puedes usar los links precargados o sustituirlos por nuevos enlaces. "
-    "Si prefieres carga manual, borra los links correspondientes y carga los archivos."
-)
-
-st.markdown("### Historial de Aspirantes")
-
-url_historial = st.text_input(
-    "Link del Excel de Historial de Aspirantes",
-    value=LINK_HISTORIAL_DEFAULT,
-    key="url_historial_maestro"
-)
-
-archivo_historial = st.file_uploader(
-    "O carga manualmente el Excel de Historial de Aspirantes",
-    type=["xlsx", "xls"],
-    key="archivo_historial_maestro"
-)
-
-st.markdown("### EVALUATEC")
-
-col_eval_1, col_eval_2, col_eval_3 = st.columns(3)
-
-with col_eval_1:
-    url_evaluatec_adm = st.text_input(
-        "Link CSV EVALUATEC Administración",
-        value=LINK_EVALUATEC_ADM_DEFAULT,
-        key="url_evaluatec_adm_maestro"
+    st.info(
+        "Puedes usar los links precargados o sustituirlos por nuevos enlaces. "
+        "Si prefieres carga manual, borra los links correspondientes y carga los archivos."
     )
 
-with col_eval_2:
-    url_evaluatec_arq = st.text_input(
-        "Link CSV EVALUATEC Arquitectura",
-        value=LINK_EVALUATEC_ARQ_DEFAULT,
-        key="url_evaluatec_arq_maestro"
+    st.markdown("### Historial de Aspirantes")
+
+    url_historial = st.text_input(
+        "Link del Excel de Historial de Aspirantes",
+        value=LINK_HISTORIAL_DEFAULT,
+        key="url_historial_maestro"
     )
 
-with col_eval_3:
-    url_evaluatec_ing = st.text_input(
-        "Link CSV EVALUATEC Ingeniería",
-        value=LINK_EVALUATEC_ING_DEFAULT,
-        key="url_evaluatec_ing_maestro"
+    archivo_historial = st.file_uploader(
+        "O carga manualmente el Excel de Historial de Aspirantes",
+        type=["xlsx", "xls"],
+        key="archivo_historial_maestro"
     )
 
-archivos_evaluatec = st.file_uploader(
-    "O carga manualmente los 3 archivos CSV de EVALUATEC",
-    type=["csv"],
-    accept_multiple_files=True,
-    key="archivos_evaluatec_maestro"
-)
+    st.markdown("### EVALUATEC")
 
-st.markdown("### CHASIDE")
+    col_eval_1, col_eval_2, col_eval_3 = st.columns(3)
 
-url_chaside = st.text_input(
-    "Link de respuestas CHASIDE de Google Sheets",
-    value=LINK_CHASIDE_DEFAULT,
-    key="url_chaside_maestro"
-)
+    with col_eval_1:
+        url_evaluatec_adm = st.text_input(
+            "Link CSV EVALUATEC Administración",
+            value=LINK_EVALUATEC_ADM_DEFAULT,
+            key="url_evaluatec_adm_maestro"
+        )
+
+    with col_eval_2:
+        url_evaluatec_arq = st.text_input(
+            "Link CSV EVALUATEC Arquitectura",
+            value=LINK_EVALUATEC_ARQ_DEFAULT,
+            key="url_evaluatec_arq_maestro"
+        )
+
+    with col_eval_3:
+        url_evaluatec_ing = st.text_input(
+            "Link CSV EVALUATEC Ingeniería",
+            value=LINK_EVALUATEC_ING_DEFAULT,
+            key="url_evaluatec_ing_maestro"
+        )
+
+    archivos_evaluatec = st.file_uploader(
+        "O carga manualmente los 3 archivos CSV de EVALUATEC",
+        type=["csv"],
+        accept_multiple_files=True,
+        key="archivos_evaluatec_maestro"
+    )
+
+    st.markdown("### CHASIDE")
+
+    url_chaside = st.text_input(
+        "Link de respuestas CHASIDE de Google Sheets",
+        value=LINK_CHASIDE_DEFAULT,
+        key="url_chaside_maestro"
+    )
 
     peso_intereses = st.slider(
         "Peso de intereses CHASIDE",
@@ -2602,9 +2602,6 @@ url_chaside = st.text_input(
         f"Pesos CHASIDE activos → Intereses: {peso_intereses:.1f} | "
         f"Aptitudes: {peso_aptitudes:.1f}"
     )
-
-    st.markdown("---")
-
     boton_generar = st.button(
         "🚀 Generar concentrado maestro",
         use_container_width=True
