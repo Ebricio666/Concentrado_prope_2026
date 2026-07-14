@@ -2602,6 +2602,9 @@ def render_app_maestra():
         f"Pesos CHASIDE activos → Intereses: {peso_intereses:.1f} | "
         f"Aptitudes: {peso_aptitudes:.1f}"
     )
+
+    st.markdown("---")
+
     boton_generar = st.button(
         "🚀 Generar concentrado maestro",
         use_container_width=True
@@ -2609,33 +2612,35 @@ def render_app_maestra():
 
     if not boton_generar and "df_maestro" not in st.session_state:
         st.info(
-            "Carga los archivos y presiona el botón para generar la super base."
+            "Carga los archivos o conserva los links precargados y presiona el botón para generar la super base."
         )
         st.stop()
 
     if boton_generar:
-  contenido_historial = obtener_contenido_historial_desde_link_o_upload(
-    url_historial=url_historial,
-    archivo_historial=archivo_historial
-)
 
-if contenido_historial is None:
-    st.error("Falta cargar o indicar el link del Historial de Aspirantes.")
-    st.stop()
+        contenido_historial = obtener_contenido_historial_desde_link_o_upload(
+            url_historial=url_historial,
+            archivo_historial=archivo_historial
+        )
 
-archivos_evaluatec_finales = obtener_archivos_evaluatec_desde_links_o_uploads(
-    url_adm=url_evaluatec_adm,
-    url_arq=url_evaluatec_arq,
-    url_ing=url_evaluatec_ing,
-    archivos_evaluatec=archivos_evaluatec
-)
+        if contenido_historial is None:
+            st.error("Falta cargar o indicar el link del Historial de Aspirantes.")
+            st.stop()
 
-if not archivos_evaluatec_finales or len(archivos_evaluatec_finales) != 3:
-    st.error(
-        "Debes tener exactamente 3 archivos de EVALUATEC. "
-        "Puedes usar los 3 links precargados o cargar los 3 CSV manualmente."
-    )
-    st.stop()
+        archivos_evaluatec_finales = obtener_archivos_evaluatec_desde_links_o_uploads(
+            url_adm=url_evaluatec_adm,
+            url_arq=url_evaluatec_arq,
+            url_ing=url_evaluatec_ing,
+            archivos_evaluatec=archivos_evaluatec
+        )
+
+        if not archivos_evaluatec_finales or len(archivos_evaluatec_finales) != 3:
+            st.error(
+                "Debes tener exactamente 3 archivos de EVALUATEC. "
+                "Puedes usar los 3 links precargados o cargar los 3 CSV manualmente."
+            )
+            st.stop()
+
         if url_chaside.strip() == "":
             st.warning(
                 "No pegaste enlace CHASIDE. El concentrado se generará sin resultados vocacionales."
@@ -2647,8 +2652,8 @@ if not archivos_evaluatec_finales or len(archivos_evaluatec_finales) != 3:
 
         with st.spinner("Procesando Historial de Aspirantes..."):
             df_historial_raw, df_bitacora = procesar_archivo_historial_excel(
-    contenido_historial
-)
+                contenido_historial
+            )
 
             if df_historial_raw.empty:
                 st.error("No se pudieron identificar estudiantes en el Historial.")
@@ -2672,7 +2677,7 @@ if not archivos_evaluatec_finales or len(archivos_evaluatec_finales) != 3:
                     df_eval, areas_detectadas = procesar_archivo_evaluatec(
                         archivo
                     )
-                    
+
                     bloque = df_eval["Bloque EVALUATEC"].iloc[0]
 
                     datos_eval_global[bloque] = {
@@ -2825,8 +2830,6 @@ if not archivos_evaluatec_finales or len(archivos_evaluatec_finales) != 3:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-
-
 # ============================================================
 # COMPATIBILIDAD DE NOMBRES
 # ============================================================
