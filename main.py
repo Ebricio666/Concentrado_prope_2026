@@ -227,6 +227,20 @@ def nombre_visible(valor):
 
     return texto.title()
 
+def normalizar_correo(valor):
+    """
+    Normaliza correos electrónicos.
+    """
+
+    if pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip().lower()
+
+    if texto in ["", "nan", "none", "sin dato"]:
+        return ""
+
+    return texto
 
 # ============================================================
 # LECTURA DE ARCHIVOS DESDE LINKS
